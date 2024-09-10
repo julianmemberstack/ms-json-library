@@ -48,8 +48,31 @@ const debounce = (func, delay) => {
 // Function to update the UI by calling all handler functions
 const updateUI = () => {
   console.log('Current memberJson.data:', JSON.stringify(memberJson.data, null, 2));
+  
+  // Store states of elements with 'ms-json-preserve-state' attribute
+  const preservedStates = {};
+  document.querySelectorAll('[ms-json-preserve-state]').forEach(el => {
+    const stateId = el.getAttribute('ms-json-preserve-state');
+    if (stateId) {
+      preservedStates[stateId] = {
+        display: el.style.display,
+        // Add other properties you want to preserve
+      };
+    }
+  });
+
   [handleJsonRender, handleJsonCount, handleJsonIfAndIfNot, handleJsonRenderTextAndAttr, handleJsonBind, handleJsonDeleteAndClear]
     .forEach(handler => handler());
+
+  // Restore states of preserved elements
+  Object.keys(preservedStates).forEach(stateId => {
+    const el = document.querySelector(`[ms-json-preserve-state="${stateId}"]`);
+    if (el) {
+      el.style.display = preservedStates[stateId].display;
+      // Restore other preserved properties
+    }
+  });
+
   console.log('UI updated');
 };
 
