@@ -204,6 +204,7 @@ const handleJsonCreateAndUpdate = () => {
 const handleJsonRender = () => {
   document.querySelectorAll('[ms-json-render]').forEach(el => {
     const path = el.getAttribute('ms-json-render');
+    const filterCondition = el.getAttribute('ms-json-filter');
     const templateElement = document.querySelector(`template[ms-json-template="${path}"]`);
     
     if (!templateElement) {
@@ -212,23 +213,29 @@ const handleJsonRender = () => {
     }
 
     const template = templateElement.innerHTML;
-    const data = getNestedProperty(memberJson.data, path);
+    let data = getNestedProperty(memberJson.data, path);
 
-    el.innerHTML = '';
-
-    if (Array.isArray(data)) {
-      el.innerHTML = data.map((item, index) => {
-        let itemHtml = template.replace(/\{index\}/g, index);
-        ['ms-json-render-text', 'ms-json-bind', 'ms-json-update'].forEach(attr => {
-          const regex = new RegExp(`${attr}=['"]([^'"]+)['"]`, 'g');
-          itemHtml = itemHtml.replace(regex, (match, key) => {
-            const value = attr === 'ms-json-render-text' ? encodeURIComponent(getNestedProperty(item, key.replace(`${path}.{index}.`, '')) || '') : '';
-            return `${attr}="${key.replace('{index}', index)}"${value ? ` data-rendered="${value}"` : ''}`;
-          });
-        });
-        return itemHtml;
-      }).join('');
+    if (!Array.isArray(data)) {
+      console.warn(`Data at path "${path}" is not an array`);
+      data = [];
     }
+
+    // Apply filter if ms-json-filter is present
+    if (filterCondition) {
+      data = filterData(data, filterCondition);
+    }
+
+    el.innerHTML = data.map((item, index) => {
+      let itemHtml = template.replace(/\{index\}/g, index);
+      ['ms-json-render-text', 'ms-json-bind', 'ms-json-update'].forEach(attr => {
+        const regex = new RegExp(`${attr}=['"]([^'"]+)['"]`, 'g');
+        itemHtml = itemHtml.replace(regex, (match, key) => {
+          const value = attr === 'ms-json-render-text' ? encodeURIComponent(getNestedProperty(item, key.replace(`${path}.{index}.`, '')) || '') : '';
+          return `${attr}="${key.replace('{index}', index)}"${value ? ` data-rendered="${value}"` : ''}`;
+        });
+      });
+      return itemHtml;
+    }).join('');
 
     el.querySelectorAll('[ms-json-render-text]').forEach(textEl => {
       const renderedValue = decodeURIComponent(textEl.getAttribute('data-rendered') || '');
@@ -337,9 +344,43 @@ const handleJsonIfAndIfNot = () => {
 const handleJsonCount = () => {
   document.querySelectorAll('[ms-json-count]').forEach(el => {
     const path = el.getAttribute('ms-json-count');
-    const array = getNestedProperty(memberJson.data, path);
-    el.textContent = Array.isArray(array) ? array.length : 0;
+    const filterCondition = el.getAttribute('ms-json-filter');
+    let array = getNestedProperty(memberJson.data, path);
+    
+    if (!Array.isArray(array)) {
+      console.warn(`Data at path "${path}" is not an array`);
+      array = [];
+    }
+    
+    if (filterCondition) {
+      array = filterData(array, filterCondition);
+    }
+    
+    el.textContent = array.length;
   });
+};
+
+// Update the filterData function
+const filterData = (data, condition) => {
+  try {
+    const [prop, operator, value] = condition.split(' ');
+    return data.filter(item => {
+      if (!(prop in item)) {
+        return operator === '!==' || operator === '!=';
+      }
+      switch (operator) {
+        case '===':
+          return item[prop] === (value === 'true');
+        case '!==':
+          return item[prop] !== (value === 'true');
+        default:
+          return false;
+      }
+    });
+  } catch (error) {
+    console.error('Error in filter condition:', error);
+    return data;
+  }
 };
 
 // ===== INITIALIZATION =====
